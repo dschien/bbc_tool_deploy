@@ -15,12 +15,6 @@ env.forward_agent = True
 env.update(config._sections['ec2'])
 env.hosts = [config.get('ec2', 'host')]
 
-
-def update():
-    with cd('bbc_tool'):
-        run('git pull')
-
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 # create console handler with a higher log level
@@ -69,6 +63,10 @@ def create_instance():
         Resources=[iid],
         Tags=mktag(env.notebook_server_tag)
     )
+    return instances[0]
+
+
+from fabric.colors import red, green
 
 
 def assert_running(instance):
@@ -79,10 +77,12 @@ def assert_running(instance):
         # Give it 10 minutes to appear online
         for i in range(120):
             time.sleep(5)
-            instance.update()
+            # instance.update()
             print instance.state
-            if instance.state['Name'] != "running":
+            if instance.state['Name'] == "running":
                 break
+        else:
+            print red("Instance did not enter 'running' state within 120s.")
 
     if instance.state['Name'] == "running":
         dns = instance.public_dns_name
@@ -106,6 +106,10 @@ def mktag(val):
 
 
 def assert_instance():
+    """
+    Return an EC2 Instance
+    :return:
+    """
     ec2 = boto3.resource('ec2')
     instances = ec2.instances.filter(
         Filters=[{'Name': 'tag:Name', 'Values': [env.notebook_server_tag]},
@@ -114,14 +118,18 @@ def assert_instance():
     instance_list = [instance for instance in instances]
     if len(instance_list) == 0:
         print('not existing, will create')
-        create_instance()
+        return create_instance()
     else:
-        assert_running(instance_list[0])
+        return assert_running(instance_list[0])
 
 
 def initial_deployment():
     print('checking instance')
-    assert_instance()
+    instance = assert_instance()
+    execute(_initial_deployment, hosts=[instance.public_dns_name])
+
+
+def _initial_deployment():
     print env.hosts
     with settings(warn_only=True):
         result = run('docker info')
@@ -138,13 +146,23 @@ def initial_deployment():
         update()
 
     build_container()
-    run_container()
+    start_nb_server()
 
 
-def run_container():
+def update():
+    with cd('bbc_tool'):
+        run('git pull')
+
+
+def start_nb_server():
     print('checking instance')
-    assert_instance()
-    cmd = 'docker run -d -p 8888:8888 -v $(pwd):/home/jovyan/work -e PASSWORD="%s" -e USE_HTTPS=yes dschien/nb' % \
+    instance = assert_instance()
+    execute(_run_container, hosts=[instance.public_dns_name])
+
+
+def _run_container():
+    update()
+    cmd = 'docker run -d -p 8888:8888 -v $(pwd):/home/jovyan/work -e PASSWORD="%s" dschien/nb' % \
           env.nb_password
     with cd('bbc_tool'):
         run(cmd)
@@ -199,7 +217,7 @@ def redeploy_container(container_name_or_id=''):
     if state == container_state['RUNNING']:
         stop_container(container_name_or_id)
     remove_container(container_name_or_id)
-    run_container()
+    start_nb_server()
 
 
 def update_site():
