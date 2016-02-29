@@ -1,6 +1,9 @@
+import boto3
 import ConfigParser
 import logging
 
+import boto3
+import time
 from fabric.api import *
 from fabric.contrib.files import exists
 
@@ -30,7 +33,157 @@ logger.addHandler(ch)
 container_state = {'RUNNING': 1, 'STOPPED': 2, 'NOT_FOUND': 3}
 
 
+def create_instance():
+    print('creating instance')
+    ec2 = boto3.resource('ec2')
+
+    instances = ec2.create_instances(
+
+        ImageId='ami-e1398992',
+        MinCount=1,
+        MaxCount=1,
+        KeyName='ep-host',
+        # SecurityGroups=['sg-e78fbc83',],
+        # sg-e78fbc83
+        # 'sg2',  # sg-e78fbc83
+        SecurityGroupIds=['sg-e78fbc83'],
+
+        InstanceType='m4.large',
+        # | 'm1.large'
+        # 't1.micro',
+
+        Placement={
+            'AvailabilityZone': 'eu-west-1a',
+            # 'GroupName': 'string',
+            # 'Tenancy': 'default' | 'dedicated' | 'host',
+            # 'HostId': 'string',
+            # 'Affinity': 'string'
+        },
+        # KernelId='string',
+        # RamdiskId='string',
+        BlockDeviceMappings=[
+            {
+                # 'VirtualName': 'string',
+                'DeviceName': '/dev/xvda',
+                'Ebs': {
+                    'SnapshotId': 'snap-7d042fb4',
+                    'VolumeSize': 8,
+                    'DeleteOnTermination': True,
+                    'VolumeType': 'gp2',
+                    # 'Iops': 24,
+                    # 'Encrypted': False
+                },
+
+            },
+        ],
+        # Monitoring={
+        #     # True |
+        #     'Enabled': False
+        # },
+        # SubnetId='string',
+        # DisableApiTermination=True | False,
+        # InstanceInitiatedShutdownBehavior='stop',
+        # PrivateIpAddress='string',
+        # ClientToken='string',
+        # AdditionalInfo='string',
+        # NetworkInterfaces=[
+        #     {
+        #         'NetworkInterfaceId': 'string',
+        #         'DeviceIndex': 123,
+        #         'SubnetId': 'string',
+        #         'Description': 'string',
+        #         'PrivateIpAddress': 'string',
+        #         'Groups': [
+        #             'string',
+        #         ],
+        #         'DeleteOnTermination': True | False,
+        #         'PrivateIpAddresses': [
+        #             {
+        #                 'PrivateIpAddress': 'string',
+        #                 'Primary': True | False
+        #             },
+        #         ],
+        #         'SecondaryPrivateIpAddressCount': 123,
+        #         'AssociatePublicIpAddress': True | False
+        #     },
+        # ],
+        # 'Arn': 'string',
+        IamInstanceProfile={'Name': 'ec2_default_instance_role'},
+        EbsOptimized=True | False
+    )
+    iid = instances[0].id
+
+    # give the instance a tag name
+    ec2.create_tags(
+        Resources=[iid],
+        Tags=mktag(env.notebook_server_tag)
+    )
+
+    # instance = start_instance(instances[0])
+
+    # env.user = config.get('ec2', 'USER')
+    # return instance
+
+
+def assert_running(instance):
+    if instance.state['Name'] != "running":
+
+        print "Firing up instance"
+        instance.start()
+        # Give it 10 minutes to appear online
+        for i in range(120):
+            time.sleep(5)
+            instance.update()
+            print instance.state
+            if instance.state['Name'] != "running":
+                break
+
+    if instance.state['Name'] == "running":
+        dns = instance.public_dns_name
+        print "Instance up and running at %s" % dns
+
+        config.set('ec2', 'host', dns)
+        config.set('ec2', 'instance', instance.id)
+        # config.write(CONFIG_FILE)
+        print "updating env.hosts"
+        env.hosts = [dns, ]
+        print env.hosts
+        # Writing our configuration file to 'example.cfg'
+        with open(CONFIG_FILE, 'wb') as configfile:
+            config.write(configfile)
+
+    return instance
+
+
+def mktag(val):
+    return [{'Key': 'Name', 'Value': val}]
+
+
+def assert_instance():
+    ec2 = boto3.resource('ec2')
+    instances = ec2.instances.filter(
+        Filters=[{'Name': 'tag:Name', 'Values': [env.notebook_server_tag]},
+                 # {'Name': 'instance-state-name', 'Values': ['running']}
+                 ])
+    instance_list = [instance for instance in instances]
+    if len(instance_list) == 0:
+        print('not existing, will create')
+        create_instance()
+    else:
+        assert_running(instance_list[0])
+
+
+def get_id_from_tag(ec2obj, tag):
+    for o in ec2obj.filter(Filters=[{'Name': 'tag:Name', 'Values': [tag]}]):
+        return o.id
+
+    return None
+
+
 def initial_deployment():
+    print('checking instance')
+    assert_instance()
+    print env.hosts
     with settings(warn_only=True):
         result = run('docker info')
         if result.failed:
@@ -40,6 +193,7 @@ def initial_deployment():
 
     # sudo('yum install -y git')
     if not exists('bbc_tool', verbose=True):
+        sudo('yum install -y git')
         run('git clone git@bitbucket.org:dschien/bbc_tool.git')
     else:
         update()
