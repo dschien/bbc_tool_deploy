@@ -43,71 +43,22 @@ def create_instance():
         MinCount=1,
         MaxCount=1,
         KeyName='ep-host',
-        # SecurityGroups=['sg-e78fbc83',],
-        # sg-e78fbc83
-        # 'sg2',  # sg-e78fbc83
         SecurityGroupIds=['sg-e78fbc83'],
-
         InstanceType='m4.large',
-        # | 'm1.large'
-        # 't1.micro',
-
         Placement={
             'AvailabilityZone': 'eu-west-1a',
-            # 'GroupName': 'string',
-            # 'Tenancy': 'default' | 'dedicated' | 'host',
-            # 'HostId': 'string',
-            # 'Affinity': 'string'
         },
-        # KernelId='string',
-        # RamdiskId='string',
         BlockDeviceMappings=[
             {
-                # 'VirtualName': 'string',
                 'DeviceName': '/dev/xvda',
                 'Ebs': {
                     'SnapshotId': 'snap-7d042fb4',
                     'VolumeSize': 8,
                     'DeleteOnTermination': True,
                     'VolumeType': 'gp2',
-                    # 'Iops': 24,
-                    # 'Encrypted': False
                 },
-
             },
         ],
-        # Monitoring={
-        #     # True |
-        #     'Enabled': False
-        # },
-        # SubnetId='string',
-        # DisableApiTermination=True | False,
-        # InstanceInitiatedShutdownBehavior='stop',
-        # PrivateIpAddress='string',
-        # ClientToken='string',
-        # AdditionalInfo='string',
-        # NetworkInterfaces=[
-        #     {
-        #         'NetworkInterfaceId': 'string',
-        #         'DeviceIndex': 123,
-        #         'SubnetId': 'string',
-        #         'Description': 'string',
-        #         'PrivateIpAddress': 'string',
-        #         'Groups': [
-        #             'string',
-        #         ],
-        #         'DeleteOnTermination': True | False,
-        #         'PrivateIpAddresses': [
-        #             {
-        #                 'PrivateIpAddress': 'string',
-        #                 'Primary': True | False
-        #             },
-        #         ],
-        #         'SecondaryPrivateIpAddressCount': 123,
-        #         'AssociatePublicIpAddress': True | False
-        #     },
-        # ],
-        # 'Arn': 'string',
         IamInstanceProfile={'Name': 'ec2_default_instance_role'},
         EbsOptimized=True | False
     )
@@ -118,11 +69,6 @@ def create_instance():
         Resources=[iid],
         Tags=mktag(env.notebook_server_tag)
     )
-
-    # instance = start_instance(instances[0])
-
-    # env.user = config.get('ec2', 'USER')
-    # return instance
 
 
 def assert_running(instance):
@@ -173,13 +119,6 @@ def assert_instance():
         assert_running(instance_list[0])
 
 
-def get_id_from_tag(ec2obj, tag):
-    for o in ec2obj.filter(Filters=[{'Name': 'tag:Name', 'Values': [tag]}]):
-        return o.id
-
-    return None
-
-
 def initial_deployment():
     print('checking instance')
     assert_instance()
@@ -203,6 +142,8 @@ def initial_deployment():
 
 
 def run_container():
+    print('checking instance')
+    assert_instance()
     cmd = 'docker run -d -p 8888:8888 -v $(pwd):/home/jovyan/work -e PASSWORD="%s" -e USE_HTTPS=yes dschien/nb' % \
           env.nb_password
     with cd('bbc_tool'):
@@ -210,6 +151,8 @@ def run_container():
 
 
 def build_container():
+    print('checking instance')
+    assert_instance()
     with cd('bbc_tool/docker'):
         run('docker build -t dschien/nb .')
 
