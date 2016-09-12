@@ -33,7 +33,7 @@ RUN jupyter declarativewidgets quick-setup --sys-prefix
 RUN pip install pypandoc
 RUN pip install excel-modelling-helper
 
-RUN pip install jupyter_cms
+RUN pip install jupyter_cms==0.5.0
 RUN jupyter cms install --user --symlink --overwrite
 RUN jupyter cms activate
 

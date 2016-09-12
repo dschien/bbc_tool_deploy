@@ -158,10 +158,14 @@ def update():
         run('git pull')
 
 
-def start_nb_server():
-    print('checking instance')
-    instance = assert_instance()
-    execute(_run_container, hosts=[instance.public_dns_name])
+def start_nb_server(with_assert=False):
+
+    if with_assert:
+        print('checking instance')
+        instance = assert_instance()
+        execute(_run_container, hosts=[instance.public_dns_name])
+    else:
+        execute(_run_container)
 
 
 def _run_container():
