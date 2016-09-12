@@ -21,12 +21,14 @@ RUN conda install --yes \
     && conda clean -yt
 
 RUN pip install jupyter_dashboards
-RUN jupyter dashboards install --user --symlink --overwrite
-RUN jupyter dashboards activate
+RUN jupyter dashboards quick-setup --sys-prefix
+#RUN jupyter dashboards install --symlink --overwrite
+#RUN jupyter dashboards activate
 
 RUN pip install jupyter_declarativewidgets
-RUN jupyter declarativewidgets install --user --symlink --overwrite
-RUN jupyter declarativewidgets activate
+RUN jupyter declarativewidgets quick-setup --sys-prefix
+#RUN jupyter declarativewidgets install --symlink --overwrite
+#RUN jupyter declarativewidgets activate
 
 RUN pip install pypandoc
 RUN pip install excel-modelling-helper

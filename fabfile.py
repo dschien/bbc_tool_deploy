@@ -123,10 +123,14 @@ def assert_instance():
         return assert_running(instance_list[0])
 
 
-def initial_deployment():
+def initial_deployment_with_assert():
     print('checking instance')
     instance = assert_instance()
     execute(_initial_deployment, hosts=[instance.public_dns_name])
+
+
+def initial_deployment():
+    execute(_initial_deployment)
 
 
 def _initial_deployment():
@@ -162,15 +166,16 @@ def start_nb_server():
 
 def _run_container():
     update()
-    cmd = 'docker run -d -p 8888:8888 -v $(pwd):/home/jovyan/work -e PASSWORD="%s" dschien/nb' % \
+    cmd = 'docker run -d -p 8888:8888 --name nb-server -v $(pwd):/home/jovyan/work -e PASSWORD="%s" dschien/nb' % \
           env.nb_password
     with cd('bbc_tool'):
         run(cmd)
 
 
-def build_container():
+def build_container(with_assert=False):
     print('checking instance')
-    assert_instance()
+    if with_assert:
+        assert_instance()
     with cd('bbc_tool/docker'):
         run('docker build -t dschien/nb .')
 
@@ -227,5 +232,5 @@ def update_site():
     """
     update()
 
-    for container in ['dschien/nb']:
+    for container in ['nb-server']:
         redeploy_container(container)
